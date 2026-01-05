@@ -10,7 +10,7 @@ Real-time depth estimation and object detection from a single camera. Combines s
 
 ### Depth Estimation
 - **Self-supervised learning**: No depth ground truth required during training
-- **Real-time inference**: 15-30 FPS on GPU, 5-10 FPS on CPU
+- **Real-time capable**: Runs on GPU or CPU
 - **Multi-scale predictions**: Depth at multiple resolutions (1/1, 1/2, 1/4, 1/8)
 - **Multiple colormaps**: Accurate, Magma, Viridis, Plasma, Jet, Turbo, Hot
 
@@ -281,8 +281,8 @@ The system detects and tracks these objects with distance estimation:
 
 ### Detection Backends
 
-1. **YOLOv8** (recommended): Fast, accurate, requires `ultralytics`
-2. **Faster R-CNN**: Automatic fallback if YOLO unavailable
+1. **YOLOv8** (recommended): Pre-trained model from Ultralytics, requires `ultralytics` package
+2. **Faster R-CNN**: Pre-trained torchvision model, automatic fallback if YOLO unavailable
 
 ### Distance Estimation
 
@@ -305,22 +305,22 @@ The system detects and tracks these objects with distance estimation:
 - **Output**: 6-DoF camera pose (rotation + translation)
 - **Use**: Self-supervised training only
 
-### Object Detector
+### Integrated Object Detectors
 
-| Model | Speed | Accuracy | Size |
-|-------|-------|----------|------|
-| YOLOv8n | ~45 FPS | Good | 6 MB |
-| YOLOv8s | ~35 FPS | Better | 22 MB |
-| Faster R-CNN | ~15 FPS | Best | 160 MB |
+This project integrates pre-trained object detection models:
+
+| Model | Notes |
+|-------|-------|
+| YOLOv8n | Ultralytics pre-trained, lightweight |
+| YOLOv8s | Ultralytics pre-trained, more accurate |
+| Faster R-CNN | PyTorch torchvision pre-trained |
 
 ## ⚡ Performance
 
-| Hardware | FPS (Depth Only) | FPS (Depth + Detection) |
-|----------|------------------|-------------------------|
-| RTX 3080 | ~60 FPS | ~30 FPS |
-| RTX 2060 | ~45 FPS | ~25 FPS |
-| GTX 1060 | ~30 FPS | ~15 FPS |
-| CPU (i7) | ~8 FPS | ~5 FPS |
+Performance depends on your hardware:
+- **GPU recommended** for real-time inference
+- **CPU mode** available but slower
+- FPS displayed in real-time on the output window
 
 ## 📚 References
 
