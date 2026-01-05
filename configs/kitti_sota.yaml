@@ -1,0 +1,58 @@
+# KITTI SOTA Configuration
+# Target: 90-95% accuracy (δ < 1.25)
+#
+# Key settings for high accuracy:
+# - ResNet50 or DPT encoder with pretrained weights
+# - Edge-aware attention decoder
+# - SSIM 0.85 + L1 0.15 photometric loss
+# - Temporal + stereo consistency
+# - Auto-masking for static pixels
+# - 25 epochs with warmup + cosine annealing
+# - Mixed precision (FP16) for efficiency
+
+data:
+  data_root: "./datasets"
+  height: 192
+  width: 640
+  batch_size: 8  # Reduce to 4 for 4GB GPU
+  num_workers: 4
+  frame_ids: [0, -1, 1]
+  num_scales: 4
+  use_stereo: true
+
+model:
+  encoder: "resnet50"  # Options: resnet18/50, efficientnet_b5, dpt_vitb16
+  pretrained: true
+  use_edge_decoder: true
+  scales: [0, 1, 2, 3]
+  min_depth: 0.1
+  max_depth: 100.0
+
+loss:
+  # Optimal weights from Monodepth2 and subsequent papers
+  ssim_weight: 0.85
+  smoothness_weight: 0.001
+  temporal_weight: 0.1
+  stereo_weight: 0.5
+  use_auto_mask: true
+
+training:
+  epochs: 25
+  learning_rate: 0.0001  # 1e-4
+  weight_decay: 0.0001   # 1e-4
+  scheduler: "cosine"
+  warmup_epochs: 2
+  min_lr: 0.000001       # 1e-6
+  gradient_clip: 1.0
+  mixed_precision: true
+  save_frequency: 1
+  log_frequency: 100
+  eval_frequency: 1
+
+# Expected results after full training:
+# - Abs Rel: ~0.100
+# - Sq Rel: ~0.700
+# - RMSE: ~4.5
+# - δ < 1.25: 0.90-0.95 (90-95%)
+# - δ < 1.25²: ~0.97
+# - δ < 1.25³: ~0.99

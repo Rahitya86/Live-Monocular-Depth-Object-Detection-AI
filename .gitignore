@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Model checkpoints (large files)
+checkpoints/
+checkpoints_advanced/
+*.pth
+*.pt
+*.onnx
+
+# YOLO
+yolov8*.pt
+runs/detect/
+
+# TensorBoard
+runs/
+
+# Data
+datasets/2011_*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+*.log
+*.tmp

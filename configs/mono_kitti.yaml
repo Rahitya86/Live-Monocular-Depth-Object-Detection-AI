@@ -1,0 +1,37 @@
+# =============================================================================
+# KITTI Training Configuration (Standard)
+# =============================================================================
+
+data:
+  data_root: datasets/
+  height: 192
+  width: 640
+  batch_size: 8
+  num_workers: 4
+  frame_ids: [0, -1, 1]
+  num_scales: 4
+
+model:
+  encoder: resnet50
+  pretrained: true
+  scales: [0, 1, 2, 3]
+  min_depth: 0.1
+  max_depth: 100.0
+  use_attention: true
+
+training:
+  epochs: 20
+  learning_rate: 0.0001
+  min_lr: 0.000001
+  weight_decay: 0.0001
+  scheduler: cosine
+  warmup_epochs: 1
+  ssim_weight: 0.85
+  smoothness_weight: 0.001
+  use_auto_mask: true
+  gradient_clip: 1.0
+  mixed_precision: true
+  log_frequency: 50
+  save_frequency: 1
+  checkpoint_dir: checkpoints
+  tensorboard_dir: runs
