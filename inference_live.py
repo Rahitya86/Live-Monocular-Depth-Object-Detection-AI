@@ -168,58 +168,215 @@ def detect_objects_fasterrcnn(detector, frame: np.ndarray, device: torch.device,
     return detections
 
 
-def compute_object_distance(depth_map: np.ndarray, bbox: Tuple[int, int, int, int]) -> float:
-    """Compute distance to object from depth map."""
+def compute_object_distance(disparity_map: np.ndarray, bbox: Tuple[int, int, int, int], 
+                            focal_length: float = 721.0, baseline: float = 0.54) -> float:
+    """
+    Compute accurate distance to object from disparity map.
+    
+    Uses KITTI camera parameters by default:
+    - focal_length: 721 pixels (for 1242x375 resolution, scales with image size)
+    - baseline: 0.54m (stereo baseline)
+    
+    For monocular depth, we use the disparity-to-depth conversion:
+    depth = (focal_length * baseline) / disparity
+    """
     x1, y1, x2, y2 = bbox
-    h, w = depth_map.shape[:2]
+    h, w = disparity_map.shape[:2]
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(w, x2), min(h, y2)
     
     if x2 <= x1 or y2 <= y1:
         return 0.0
     
-    depth_region = depth_map[y1:y2, x1:x2]
-    if depth_region.size == 0:
+    # Use central 50% of bounding box for more stable measurement
+    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+    box_w, box_h = x2 - x1, y2 - y1
+    inner_x1 = max(x1, cx - box_w // 4)
+    inner_y1 = max(y1, cy - box_h // 4)
+    inner_x2 = min(x2, cx + box_w // 4)
+    inner_y2 = min(y2, cy + box_h // 4)
+    
+    # Also sample the lower-center region (usually more reliable for objects on ground)
+    lower_y1 = y1 + int(box_h * 0.5)
+    lower_y2 = y2
+    lower_x1 = max(x1, cx - box_w // 3)
+    lower_x2 = min(x2, cx + box_w // 3)
+    
+    # Get disparity regions
+    center_region = disparity_map[inner_y1:inner_y2, inner_x1:inner_x2]
+    lower_region = disparity_map[lower_y1:lower_y2, lower_x1:lower_x2]
+    
+    all_disparities = []
+    
+    for region in [center_region, lower_region]:
+        if region.size == 0:
+            continue
+        valid_mask = np.isfinite(region) & (region > 0.01)
+        valid_vals = region[valid_mask]
+        if valid_vals.size > 0:
+            all_disparities.extend(valid_vals.flatten())
+    
+    if len(all_disparities) == 0:
         return 0.0
     
-    valid_mask = np.isfinite(depth_region) & (depth_region > 0)
-    valid_depths = depth_region[valid_mask]
+    all_disparities = np.array(all_disparities)
     
-    if valid_depths.size == 0:
-        return 0.0
+    # Use percentile to remove outliers
+    if len(all_disparities) > 5:
+        p30, p70 = np.percentile(all_disparities, [30, 70])
+        filtered = all_disparities[(all_disparities >= p30) & (all_disparities <= p70)]
+        if len(filtered) > 0:
+            all_disparities = filtered
     
-    return float(np.median(valid_depths))
+    # Get median disparity value (higher disparity = closer object)
+    median_disp = float(np.median(all_disparities))
+    
+    # The model outputs normalized disparity in range ~[0, 1]
+    # Higher disparity = closer, lower disparity = farther
+    # We need to map this to real-world distance
+    
+    # Scale focal length based on current image size vs KITTI default (1242 width)
+    scaled_focal = focal_length * (w / 1242.0)
+    
+    # Convert disparity to depth using stereo formula
+    # For normalized disparity, we scale by image width to get pixel disparity
+    pixel_disparity = median_disp * w * 0.3  # Scale factor for model output
+    
+    if pixel_disparity > 0.5:
+        depth_meters = (scaled_focal * baseline) / pixel_disparity
+        depth_meters = np.clip(depth_meters, 0.5, 80.0)
+    else:
+        # Use inverse relationship for very small disparities
+        depth_meters = 50.0 / (median_disp + 0.01)
+        depth_meters = np.clip(depth_meters, 5.0, 80.0)
+    
+    return depth_meters
 
 
 class DepthSmoother:
-    """Temporal smoothing for depth measurements."""
+    """
+    Kalman-filter-based temporal smoothing for stable distance measurements.
+    Handles object tracking and provides accurate distance even while moving.
+    """
     
-    def __init__(self, alpha: float = 0.3, max_history: int = 10):
-        self.alpha = alpha
+    def __init__(self, process_noise: float = 0.1, measurement_noise: float = 0.5, 
+                 max_history: int = 15, velocity_smoothing: float = 0.7):
+        self.process_noise = process_noise
+        self.measurement_noise = measurement_noise
         self.max_history = max_history
-        self.history: Dict[str, List[float]] = {}
-        self.smoothed: Dict[str, float] = {}
+        self.velocity_smoothing = velocity_smoothing
+        
+        # State: {key: {'distance': float, 'velocity': float, 'variance': float, 'history': list, 'last_bbox': tuple}}
+        self.tracks: Dict[str, Dict] = {}
+        self.frame_count = 0
+    
+    def _get_track_key(self, class_name: str, bbox: Tuple[int, int, int, int]) -> str:
+        """Generate tracking key based on position."""
+        x1, y1, x2, y2 = bbox
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        # Use grid-based tracking for object association
+        grid_x, grid_y = cx // 60, cy // 60
+        return f"{class_name}_{grid_x}_{grid_y}"
+    
+    def _find_best_match(self, class_name: str, bbox: Tuple[int, int, int, int]) -> Optional[str]:
+        """Find best matching existing track for this detection."""
+        x1, y1, x2, y2 = bbox
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        
+        best_key = None
+        best_dist = float('inf')
+        
+        for key, track in self.tracks.items():
+            if not key.startswith(class_name):
+                continue
+            if 'last_bbox' not in track:
+                continue
+            
+            lx1, ly1, lx2, ly2 = track['last_bbox']
+            lcx, lcy = (lx1 + lx2) // 2, (ly1 + ly2) // 2
+            dist = np.sqrt((cx - lcx)**2 + (cy - lcy)**2)
+            
+            # Match if within 100 pixels
+            if dist < 100 and dist < best_dist:
+                best_dist = dist
+                best_key = key
+        
+        return best_key
     
     def update(self, class_name: str, distance: float, 
                bbox: Tuple[int, int, int, int]) -> float:
-        x1, y1, x2, y2 = bbox
-        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-        key = f"{class_name}_{cx // 80}_{cy // 80}"
+        """
+        Update distance estimate using Kalman filter approach.
+        Returns smoothed, accurate distance measurement.
+        """
+        self.frame_count += 1
         
+        # Validate measurement
         if distance <= 0 or distance < 0.3 or distance > 80.0:
-            return self.smoothed.get(key, 0.0)
+            key = self._get_track_key(class_name, bbox)
+            if key in self.tracks:
+                return self.tracks[key]['distance']
+            return 0.0
         
-        if key not in self.history:
-            self.history[key] = []
-            self.smoothed[key] = distance
+        # Try to find existing track
+        key = self._find_best_match(class_name, bbox)
+        if key is None:
+            key = self._get_track_key(class_name, bbox)
         
-        self.history[key].append(distance)
-        if len(self.history[key]) > self.max_history:
-            self.history[key].pop(0)
+        if key not in self.tracks:
+            # Initialize new track
+            self.tracks[key] = {
+                'distance': distance,
+                'velocity': 0.0,
+                'variance': 1.0,
+                'history': [distance],
+                'last_bbox': bbox,
+                'last_frame': self.frame_count
+            }
+            return distance
         
-        prev = self.smoothed[key]
-        self.smoothed[key] = self.alpha * distance + (1 - self.alpha) * prev
-        return self.smoothed[key]
+        track = self.tracks[key]
+        
+        # Predict step (constant velocity model)
+        dt = 1.0 / 30.0  # Assume 30 FPS
+        predicted_dist = track['distance'] + track['velocity'] * dt
+        predicted_var = track['variance'] + self.process_noise
+        
+        # Update step (Kalman gain)
+        kalman_gain = predicted_var / (predicted_var + self.measurement_noise)
+        
+        # Update distance estimate
+        new_distance = predicted_dist + kalman_gain * (distance - predicted_dist)
+        new_variance = (1 - kalman_gain) * predicted_var
+        
+        # Update velocity estimate
+        velocity = (new_distance - track['distance']) / dt
+        track['velocity'] = self.velocity_smoothing * velocity + (1 - self.velocity_smoothing) * track['velocity']
+        
+        # Limit velocity to reasonable range (-10 to 10 m/s)
+        track['velocity'] = np.clip(track['velocity'], -10.0, 10.0)
+        
+        # Update track
+        track['distance'] = new_distance
+        track['variance'] = new_variance
+        track['history'].append(distance)
+        track['last_bbox'] = bbox
+        track['last_frame'] = self.frame_count
+        
+        if len(track['history']) > self.max_history:
+            track['history'].pop(0)
+        
+        # Clean up old tracks
+        self._cleanup_old_tracks()
+        
+        return new_distance
+    
+    def _cleanup_old_tracks(self):
+        """Remove tracks that haven't been updated recently."""
+        stale_keys = [k for k, v in self.tracks.items() 
+                      if self.frame_count - v.get('last_frame', 0) > 30]
+        for key in stale_keys:
+            del self.tracks[key]
 
 
 @torch.no_grad()
@@ -252,7 +409,7 @@ def predict_depth(model: DepthNet, frame: np.ndarray, device: torch.device,
 def draw_detections(frame: np.ndarray, detections: List[Dict], 
                    depth_map: np.ndarray = None, smoother: DepthSmoother = None,
                    show_distance: bool = True) -> np.ndarray:
-    """Draw bounding boxes and labels on frame."""
+    """Draw bounding boxes and labels on frame with enhanced visibility."""
     result = frame.copy()
     
     for det in detections:
@@ -260,13 +417,37 @@ def draw_detections(frame: np.ndarray, detections: List[Dict],
         class_name = det['class_name']
         
         if class_name == 'person':
-            color = (0, 255, 0)
+            color = (0, 255, 0)  # Green
+            fill_color = (0, 180, 0)
         elif class_name in ['car', 'truck', 'bus', 'motorcycle', 'bicycle']:
-            color = (255, 100, 0)
+            color = (255, 100, 0)  # Blue-orange
+            fill_color = (200, 80, 0)
         else:
-            color = (0, 255, 255)
+            color = (0, 255, 255)  # Yellow
+            fill_color = (0, 200, 200)
         
-        cv2.rectangle(result, (x1, y1), (x2, y2), color, 2)
+        # Create semi-transparent overlay for the detection region
+        overlay = result.copy()
+        cv2.rectangle(overlay, (x1, y1), (x2, y2), fill_color, -1)
+        cv2.addWeighted(overlay, 0.25, result, 0.75, 0, result)
+        
+        # Draw thick border for better visibility
+        cv2.rectangle(result, (x1, y1), (x2, y2), color, 3)
+        
+        # Add corner markers for enhanced visibility
+        corner_len = min(20, (x2 - x1) // 4, (y2 - y1) // 4)
+        # Top-left corner
+        cv2.line(result, (x1, y1), (x1 + corner_len, y1), (255, 255, 255), 4)
+        cv2.line(result, (x1, y1), (x1, y1 + corner_len), (255, 255, 255), 4)
+        # Top-right corner
+        cv2.line(result, (x2, y1), (x2 - corner_len, y1), (255, 255, 255), 4)
+        cv2.line(result, (x2, y1), (x2, y1 + corner_len), (255, 255, 255), 4)
+        # Bottom-left corner
+        cv2.line(result, (x1, y2), (x1 + corner_len, y2), (255, 255, 255), 4)
+        cv2.line(result, (x1, y2), (x1, y2 - corner_len), (255, 255, 255), 4)
+        # Bottom-right corner
+        cv2.line(result, (x2, y2), (x2 - corner_len, y2), (255, 255, 255), 4)
+        cv2.line(result, (x2, y2), (x2, y2 - corner_len), (255, 255, 255), 4)
         
         distance_str = ""
         if show_distance and depth_map is not None:
@@ -278,10 +459,26 @@ def draw_detections(frame: np.ndarray, detections: List[Dict],
         
         label = f"{class_name.capitalize()}{distance_str}"
         font = cv2.FONT_HERSHEY_SIMPLEX
-        (tw, th), _ = cv2.getTextSize(label, font, 0.6, 2)
+        font_scale = 0.7
+        thickness = 2
+        (tw, th), _ = cv2.getTextSize(label, font, font_scale, thickness)
         
-        cv2.rectangle(result, (x1, max(0, y1 - th - 8)), (x1 + tw + 8, y1), color, -1)
-        cv2.putText(result, label, (x1 + 4, y1 - 4), font, 0.6, (255, 255, 255), 2)
+        # Label background with padding
+        label_y = max(0, y1 - th - 12)
+        cv2.rectangle(result, (x1, label_y), (x1 + tw + 12, y1), color, -1)
+        cv2.rectangle(result, (x1, label_y), (x1 + tw + 12, y1), (255, 255, 255), 2)
+        cv2.putText(result, label, (x1 + 6, y1 - 6), font, font_scale, (255, 255, 255), thickness)
+        
+        # Add depth indicator bar at bottom of box (inverse: closer = longer bar)
+        if show_distance and depth_map is not None and distance_str:
+            bar_height = 8
+            bar_y = y2 - bar_height - 4
+            dist_val = float(distance_str.replace(': ', '').replace('m', ''))
+            # Inverse relationship: closer objects get longer bar
+            bar_ratio = max(0.1, 1.0 - (dist_val / 50.0))
+            bar_width = int(max(10, (x2 - x1 - 4) * bar_ratio))
+            cv2.rectangle(result, (x1 + 2, bar_y), (x1 + 2 + bar_width, y2 - 4), (0, 200, 255), -1)
+            cv2.rectangle(result, (x1 + 2, bar_y), (x2 - 2, y2 - 4), (255, 255, 255), 1)
     
     return result
 
@@ -329,10 +526,10 @@ class LiveDepthProcessor:
         else:
             detections = []
         
-        # Depth prediction
+        # Depth prediction - get raw disparity
         disparity_map = predict_depth(self.depth_model, frame, self.device, self.height, self.width)
         
-        # Normalize disparity
+        # Get disparity stats for normalization
         disp = disparity_map.astype(np.float32)
         disp_min, disp_max = disp.min(), disp.max()
         if disp_max - disp_min > 1e-8:
@@ -340,11 +537,7 @@ class LiveDepthProcessor:
         else:
             disp_norm = np.zeros_like(disp)
         
-        # Depth for distance estimation
-        depth_for_distance = self.scaling_factor / (disp_norm + 1e-6)
-        depth_for_distance = np.clip(depth_for_distance, 0.1, 100.0)
-        
-        # Colorize depth
+        # Colorize depth using normalized disparity
         if self.colormap in ['accurate', 'magma']:
             cmap = plt.cm.magma
             depth_rgb = cmap(disp_norm)[:, :, :3]
@@ -358,17 +551,17 @@ class LiveDepthProcessor:
             else:
                 depth_colored = cv2.cvtColor(depth_uint8, cv2.COLOR_GRAY2BGR)
         
-        # Draw detections
+        # Draw detections on depth map - pass RAW disparity for distance calculation
         if self.draw_boxes and detections:
-            frame_with_boxes = draw_detections(
-                frame, detections, depth_for_distance if self.show_distance else None,
+            depth_with_boxes = draw_detections(
+                depth_colored, detections, disparity_map if self.show_distance else None,
                 self.depth_smoother, self.show_distance
             )
         else:
-            frame_with_boxes = frame
+            depth_with_boxes = depth_colored
         
-        # Combine side-by-side
-        combined = np.hstack([frame_with_boxes, depth_colored])
+        # Show only depth with detections
+        combined = depth_with_boxes
         
         # Update FPS
         elapsed = time.time() - t0
@@ -378,7 +571,7 @@ class LiveDepthProcessor:
         self.fps = 1.0 / (sum(self.frame_times) / len(self.frame_times) + 1e-9)
         self.frame_count += 1
         
-        return combined, depth_for_distance, detections
+        return combined, disparity_map, detections
     
     def add_overlay(self, frame: np.ndarray, detections: List[Dict]) -> np.ndarray:
         """Add overlay with stats."""
