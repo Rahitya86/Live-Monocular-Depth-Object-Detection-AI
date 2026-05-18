@@ -1,8 +1,6 @@
 # MonoDepth AI™ — Real-Time Depth Perception for Any Camera
 
-<p align="center">
-  <img src="assets/hero-banner.png" alt="MonoDepth AI Demo" width="100%">
-</p>
+
 
 **Transform any standard camera into a powerful depth sensor.** MonoDepth AI delivers enterprise-grade 3D depth estimation from a single RGB camera—no LiDAR, stereo setup, or expensive hardware required. Powered by state-of-the-art self-supervised deep learning, our solution provides real-time distance measurement and object detection at a fraction of the cost of traditional depth sensors.
 
@@ -27,11 +25,7 @@ python inference_live.py --webcam 0 --checkpoint checkpoints/best.pth
 
 **That's it!** Point your webcam at any scene and watch real-time depth estimation with object distance tracking.
 
-<p align="center">
-  <img src="assets/demo-screenshot.png" alt="Live Inference Demo" width="80%">
-  <br>
-  <em>Real-time depth estimation with object distance measurement</em>
-</p>
+
 
 ---
 
@@ -191,19 +185,7 @@ Choose from 8 visualization styles optimized for different applications:
 ✅ Training on your own data  
 ✅ Commercial use permitted  
 
-### 🌟 Enterprise Add-ons
 
-| Add-on | Description | Contact for Pricing |
-|--------|-------------|---------------------|
-| **🚀 TensorRT Optimization** | 2-3x faster inference with NVIDIA TensorRT export | ✉️ sales@example.com |
-| **📱 Mobile Deployment Kit** | Optimized models for iOS/Android (CoreML, ONNX) | ✉️ sales@example.com |
-| **☁️ Cloud API Service** | Managed REST API with auto-scaling | ✉️ sales@example.com |
-| **🔧 Custom Model Training** | Train on your specific data, fine-tuned for your use case | ✉️ sales@example.com |
-| **🎓 Technical Training** | On-site or virtual training for your engineering team | ✉️ sales@example.com |
-| **🛡️ Priority Support** | Dedicated Slack channel, 24-hour response SLA | ✉️ sales@example.com |
-| **🔌 Integration Services** | Custom integration with your existing systems | ✉️ sales@example.com |
-
-**Volume licensing and custom solutions available.** Contact us at **sales@example.com** for a tailored quote.
 
 ---
 
@@ -356,7 +338,3 @@ pip install ultralytics
 
 ---
 
-<p align="center">
-  <b>Ready to add depth perception to your product?</b><br>
-  <a href="mailto:sales@example.com">Contact Us</a> • <a href="https://example.com/demo">Request Demo</a> • <a href="https://example.com/docs">Documentation</a>
-</p>
