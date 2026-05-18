@@ -104,33 +104,6 @@ MonoDepth AI isn't just research code—it's a production-ready solution designe
 
 ---
 
-## 📸 See It In Action
-
-<table>
-<tr>
-<td width="50%">
-<img src="assets/demo-outdoor.gif" alt="Outdoor Scene">
-<br><em>Outdoor driving scene with vehicle distance tracking</em>
-</td>
-<td width="50%">
-<img src="assets/demo-indoor.gif" alt="Indoor Scene">
-<br><em>Indoor environment with person detection</em>
-</td>
-</tr>
-<tr>
-<td width="50%">
-<img src="assets/depth-colormap.png" alt="Depth Colormap">
-<br><em>Multiple colormap options for visualization</em>
-</td>
-<td width="50%">
-<img src="assets/object-detection.png" alt="Object Detection">
-<br><em>Real-time object detection with distance labels</em>
-</td>
-</tr>
-</table>
-
----
-
 ## 🎯 Features at a Glance
 
 ### Depth Estimation
