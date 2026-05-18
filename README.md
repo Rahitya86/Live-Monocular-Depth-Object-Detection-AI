@@ -1,175 +1,137 @@
-### Base Package — Open Source (MIT License)
-✅ Full depth estimation engine  
-✅ Object detection integration  
-✅ Live inference & video processing  
-✅ Training on your own data  
-✅ Commercial use permitted  
+# MonoDepth AI™ — Real-Time Depth Perception for Any Camera
 
-### 🌟 Enterprise Add-ons
+<p align="center">
+  <img src="assets/hero-banner.png" alt="MonoDepth AI Demo" width="100%">
+</p>
 
-| Add-on | Description | Contact for Pricing |
-|--------|-------------|---------------------|
-| **🚀 TensorRT Optimization** | 2-3x faster inference with NVIDIA TensorRT export | ✉️ sales@example.com |
-| **📱 Mobile Deployment Kit** | Optimized models for iOS/Android (CoreML, ONNX) | ✉️ sales@example.com |
-| **☁️ Cloud API Service** | Managed REST API with auto-scaling | ✉️ sales@example.com |
-| **🔧 Custom Model Training** | Train on your specific data, fine-tuned for your use case | ✉️ sales@example.com |
-| **🎓 Technical Training** | On-site or virtual training for your engineering team | ✉️ sales@example.com |
-| **🛡️ Priority Support** | Dedicated Slack channel, 24-hour response SLA | ✉️ sales@example.com |
-| **🔌 Integration Services** | Custom integration with your existing systems | ✉️ sales@example.com |
+**Transform any standard camera into a powerful depth sensor.** MonoDepth AI delivers 3D depth estimation from a single RGB camera—no LiDAR, stereo setup, or expensive hardware required. The project combines self-supervised monocular depth learning with real-time object detection for practical deployment and research.
 
-**Volume licensing and custom solutions available.** Contact us at **sales@example.com** for a tailored quote.
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org) [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
-## ⚙️ Usage Examples
+## Getting Started (Quick)
 
-### Live Webcam Inference
+Run a live demo with a webcam using the provided pre-trained checkpoint:
 
 ```bash
-# Default webcam with object detection
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 python inference_live.py --webcam 0 --checkpoint checkpoints/best.pth
-
-# Custom colormap and resolution
-python inference_live.py --webcam 0 --colormap turbo --height 256 --width 832
-
-# Disable bounding boxes (depth only)
-python inference_live.py --webcam 0 --no-boxes
 ```
 
-### Video Processing
+To train (example):
 
 ```bash
-# Process video file
-python inference_live.py --input video.mp4 --checkpoint checkpoints/best.pth
-
-# Slow-motion playback for analysis
-python inference_live.py --input video.mp4 --slowdown 3 --loop
-```
-
-### Batch Image Processing
-
-```bash
-# Process folder of images
-python inference_live.py --input images/ --checkpoint checkpoints/best.pth
-```
-
----
-
-## 🎓 Training Your Own Model
-
-Train on your own unlabeled video data with self-supervised learning:
-
-```bash
-# Quick start with default settings
 python train.py --config configs/default.yaml
+```
 
-# High-accuracy KITTI training
+## Maintainer
+
+- Name: Rahitya
+- Email: ulapallirahitya@gmail.com
+- GitHub: @Rahitya86
+
+## Overview
+
+This repository implements a self-supervised monocular depth estimation pipeline with integrated object detection and distance estimation. It is intended for reproducible experiments and practical live inference.
+
+Key capabilities:
+- Self-supervised training (photometric + SSIM + smoothness)
+- Multi-scale depth outputs and pose estimation
+- Real-time inference pipeline with YOLOv8 object detection integration
+- Support for webcams, video files, image folders, and RTSP streams
+
+## Features
+
+- Self-supervised monocular depth learning (no ground-truth depth required)
+- Multi-scale disparity → depth conversion with configurable min/max depth
+- PoseNet for relative pose estimation during training
+- YOLOv8 detection (recommended) with torchvision Faster R-CNN fallback
+- Distance estimation per detected object (median depth inside bounding box)
+- Interactive live demo controls (pause, save frame, cycle colormap)
+
+## Project Structure
+
+```
+./
+├── inference_live.py   # Live depth + object detection demo
+├── inference.py        # Batch inference for video/images
+├── train.py            # Training entrypoint
+├── train_advanced.py   # Advanced training options
+├── visualize.py        # Visualization utilities
+├── models/             # Encoder/Decoder/PoseNet implementations
+├── geometry/           # Camera, warping, projection utilities
+├── losses/             # Photometric, smoothness, combined losses
+├── datasets/           # KITTI and generic video dataset loaders
+├── configs/            # YAML configs for reproducible runs
+├── checkpoints/        # Pre-trained model checkpoints
+└── docs/               # Advanced documentation and training details
+```
+
+## Usage Examples
+
+Live webcam with object detection:
+
+```bash
+python inference_live.py --webcam 0 --checkpoint checkpoints/best.pth
+```
+
+Depth-only live (no boxes):
+
+```bash
+python inference_live.py --webcam 0 --no-boxes --checkpoint checkpoints/best.pth
+```
+
+Process a video file:
+
+```bash
+python inference_live.py --input video.mp4 --checkpoint checkpoints/best.pth
+```
+
+Batch process an image folder:
+
+```bash
+python inference_live.py --input images_folder/ --checkpoint checkpoints/best.pth
+```
+
+## Training
+
+Train with the default config:
+
+```bash
+python train.py --config configs/default.yaml
+```
+
+High-accuracy KITTI config:
+
+```bash
 python train.py --config configs/kitti_sota.yaml
 ```
 
-**Prepare your data:**
-```
-your_data/
-├── sequence_001/
-│   ├── frame_0000.png
-│   ├── frame_0001.png
-│   └── ...
-├── sequence_002/
-│   └── ...
-```
+See `docs/advanced.md` for detailed hyperparameters and loss formulations.
 
-📖 **For detailed training configuration, see [docs/advanced.md](docs/advanced.md)**
+## Evaluation
 
----
+Depth metrics implemented: AbsRel, SqRel, RMSE, RMSE(log), δ thresholds. Use provided evaluation scripts when ground truth is available (KITTI-format).
 
-## 📊 Performance
+## Configuration
 
-| RTX 2080 | 640×192 | 85 | 45 |
-| GTX 1080 | 640×192 | 60 | 30 |
-| CPU (i7) | 640×192 | 8 | 5 |
+Configurations are YAML files in `configs/`. They define model, training, and data parameters. Use these configs to reproduce experiments and tune models.
 
----
+## Assets & Visuals
 
-## 📁 What's Included
+This repository supports optional visual assets. To include screenshots or GIFs in the README, place them in the `assets/` directory and reference them in the Markdown.
 
-```
-MonoDepth-AI/
-├── inference_live.py   # 🎥 Live depth + detection (start here!)
-├── inference.py        # Video/image batch processing
-├── train.py            # Model training
-├── train_advanced.py   # Advanced training options
-├── visualize.py        # Visualization tools
-│
-├── models/             # Neural network architectures
-├── geometry/           # 3D geometry operations
-├── losses/             # Training loss functions
-Maintainer: Rahitya
+## Support & Contact
 
-Contact:
-- Email: ulapallirahitya@gmail.com
-- GitHub: @Rahitya86
-├── configs/            # Training configurations
-└── docs/               # Advanced documentation
-```
+- Maintainer: ulapallirahitya@gmail.com
+- Issues & discussions: https://github.com/Rahitya86/Live-Monocular-Depth-Object-Detection-AI/issues
 
-📖 **Technical deep-dive:** See [docs/advanced.md](docs/advanced.md) for architecture details, configuration options, and optimization guides.
+## License
+
+MIT License — see `LICENSE` for details.
 
 ---
 
-## 🛠️ Requirements
-
-- **Python 3.10+**
-- **PyTorch 2.0+**
-- **CUDA-capable GPU** (recommended for real-time performance)
-- **Webcam** (for live inference)
-
-### Installation
-
-```bash
-# Clone repository
-git clone https://github.com/Rahitya86/Live-Monocular-Depth-Object-Detection-AI.git
-cd Live-Monocular-Depth-Object-Detection-AI
-
-# Create environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Optional: Install YOLOv8 for object detection
-pip install ultralytics
-```
-
----
-
-## 🆘 Support
-
-| Resource | Link |
-|----------|------|
-| 📖 Documentation | [docs/advanced.md](docs/advanced.md) |
-| 🐛 Bug Reports | [GitHub Issues](https://github.com/Rahitya86/Live-Monocular-Depth-Object-Detection-AI/issues) |
-| 💬 Discussions | [GitHub Discussions](https://github.com/Rahitya86/Live-Monocular-Depth-Object-Detection-AI/discussions) |
-| ✉️ Enterprise Sales | sales@example.com |
-| 🔧 Technical Support | support@example.com |
-
----
-
-## 📚 References
-
-- Godard et al., *"Digging into Self-Supervised Monocular Depth Prediction"* (ICCV 2019)
-- Zhou et al., *"Unsupervised Learning of Depth and Ego-Motion"* (CVPR 2017)
-- Ultralytics, *"YOLOv8: Real-Time Object Detection"* (2023)
-
----
-
-## 📄 License
-
-**MIT License** — Free for research and commercial use.
-
----
-
-<p align="center">
-  <b>Ready to add depth perception to your product?</b><br>
-  <a href="mailto:sales@example.com">Contact Us</a> • <a href="https://example.com/demo">Request Demo</a> • <a href="https://example.com/docs">Documentation</a>
-</p>
