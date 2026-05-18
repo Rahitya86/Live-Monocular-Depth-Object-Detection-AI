@@ -1,14 +1,93 @@
-## Live Monocular Depth Estimation with Object Detection
+## Live Monocular Depth Estimation + Object Detection
 
-This repository contains a professional implementation of real-time monocular depth estimation combined with object detection. The goal of this README is to document how the system was implemented, how to reproduce results, and how to run the code for development and evaluation.
+Reproducible implementation of self-supervised monocular depth estimation integrated with object detection. This README focuses on project usage, reproduction, and developer workflows.
 
-Maintained and implemented by: Rahitya
+Maintainer: Rahitya
 
-Summary of the implementation
-- Self-supervised monocular depth learning using a Monodepth2-style pipeline (photometric reconstruction with SSIM + L1, auto-masking, edge-aware smoothness).
-- Depth model: encoder–decoder architecture (configurable ResNet backbone) producing multi-scale disparity outputs and conversion to metric depth using configurable min/max depths.
-- Pose estimation: lightweight PoseNet for relative pose between frames used during training for view synthesis.
-- Object detection: YOLOv8 integration for real-time detections with a torchvision Faster R-CNN fallback; distance estimation uses median depth within bounding boxes and optional temporal smoothing.
+## Table of Contents
+- [Quick Start](#quick-start)
+- [Features](#features)
+- [Project Layout](#project-layout)
+- [Implementation Notes](#implementation-notes)
+- [Training & Evaluation](#training--evaluation)
+- [Configuration & Reproducibility](#configuration--reproducibility)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Quick Start
+
+Developer quick-start (run live demo):
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python inference_live.py --webcam 0 --checkpoint checkpoints/best.pth
+```
+
+Training example:
+
+```bash
+python train.py --config configs/default.yaml
+```
+
+## Features
+
+- Self-supervised monocular depth estimation (photometric L1 + SSIM, auto-masking)
+- Multi-scale depth/disparity outputs and pose estimation for temporal consistency
+- Object detection integration (YOLOv8 preferred, Faster R-CNN fallback)
+- Live inference (`inference_live.py`) supporting webcams, video files and RTSP
+- Metric distance estimation per detected object (median depth in bbox)
+
+## Project Layout
+
+```
+./
+├── inference_live.py    # Live depth + detection (demo entrypoint)
+├── inference.py         # Batch inference for videos/images
+├── train.py             # Training entrypoint
+├── train_advanced.py    # Extended training options
+├── models/              # Encoder/Decoder/PoseNet implementations
+├── geometry/            # Camera, warping, projection utilities
+├── losses/              # Photometric, smoothness, combined losses
+├── datasets/            # KITTI and generic video dataset loaders
+├── configs/             # YAML configs for reproducible runs
+├── checkpoints/         # Saved model checkpoints
+└── docs/                # Advanced notes and configuration reference
+```
+
+## Implementation Notes
+
+- Depth model: encoder–decoder architecture (configurable ResNet backbone) producing multi-scale disparity outputs; disparity converted to depth using `min_depth` / `max_depth`.
+- PoseNet: lightweight network for predicting 6-DoF between frames (used in training for inverse warping).
+- Losses: multi-scale photometric reconstruction (SSIM + L1), auto-masking for static pixels, edge-aware smoothness.
+- Detection: YOLOv8 integration for speed; torchvision Faster R-CNN fallback available. Distance estimated as median depth within detection bounding box and optionally temporally smoothed.
+
+## Training & Evaluation
+
+- Use `configs/` to run reproducible experiments. Example: `python train.py --config configs/kitti_sota.yaml`.
+- Evaluation scripts compute standard depth metrics (AbsRel, SqRel, RMSE, RMSE(log), δ thresholds); for metric evaluation provide correct camera intrinsics and ground-truth.
+
+## Configuration & Reproducibility
+
+- Detailed hyperparameters, config examples, and formulas are in `docs/advanced.md`.
+- Keep result reproducible: pin dependencies in `requirements.txt` and use provided YAML configs.
+- Checkpoints in `checkpoints/` are intended for evaluation and fine-tuning.
+
+## Contributing
+
+Contributions are welcome. Suggested small tasks:
+- Add new encoder backbones or detection backends
+- Improve inference performance (ONNX/TensorRT paths)
+- Add unit tests for data loaders
+
+If you plan to contribute, open an issue describing the change, fork the repo, and submit a PR.
+
+## License
+
+This project is licensed under the MIT License — see `LICENSE` for details.
+
+If you reuse the models or code in academic work, please cite Monodepth2 and SfMLearner in addition to linking this repository.
 
 Project structure (short)
 ```
