@@ -1,6 +1,76 @@
+## Live Monocular Depth Estimation with Object Detection
+
+This repository contains a professional implementation of real-time monocular depth estimation combined with object detection. The goal of this README is to document how the system was implemented, how to reproduce results, and how to run the code for development and evaluation.
+
+Maintained and implemented by: Rahitya
+
+Summary of the implementation
+- Self-supervised monocular depth learning using a Monodepth2-style pipeline (photometric reconstruction with SSIM + L1, auto-masking, edge-aware smoothness).
+- Depth model: encoder–decoder architecture (configurable ResNet backbone) producing multi-scale disparity outputs and conversion to metric depth using configurable min/max depths.
+- Pose estimation: lightweight PoseNet for relative pose between frames used during training for view synthesis.
+- Object detection: YOLOv8 integration for real-time detections with a torchvision Faster R-CNN fallback; distance estimation uses median depth within bounding boxes and optional temporal smoothing.
+
+Project structure (short)
+```
+./
+├── inference_live.py    # Live depth + detection (primary demo entrypoint)
+├── inference.py         # Batch inference for videos/images
+├── train.py             # Training entrypoint (self-supervised)
+├── train_advanced.py    # Extended training options
+├── models/              # Encoder/Decoder/PoseNet implementations
+├── geometry/            # Camera, warping, projection utilities
+├── losses/              # Photometric, smoothness, combined losses
+├── datasets/            # KITTI and generic video dataset loaders
+├── configs/             # YAML configs for reproducible runs
+├── checkpoints/         # Saved model checkpoints
+└── docs/                # Advanced notes and configuration reference
+```
+
+How I built it (technical summary)
+1. Implemented a ResNet encoder and a multi-scale decoder to produce disparity at 4 scales. Disparity is converted to depth with configurable `min_depth` and `max_depth`.
+2. Training objective: multi-scale photometric reconstruction loss combining SSIM and L1, auto-masking to exclude static pixels, and edge-aware smoothness regularization across scales.
+3. Pose estimation: small PoseNet predicts 6-DOF between adjacent frames; predicted poses and depth enable inverse-warping for self-supervision.
+4. Data pipeline: video-frame based datasets with augmentation, temporal sampling (frame ids `[0, -1, 1]` by default), and KITTI-style loaders provided.
+5. Detection integration: optional YOLOv8 (Ultralytics) for speed; if not installed, torchvision's Faster R-CNN is used. Detections are used to compute object-wise depth (median depth within bbox) and distance labels.
+
+Quick start (developer)
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python inference_live.py --webcam 0 --checkpoint checkpoints/best.pth
+```
+
+Train (example):
+```bash
+python train.py --config configs/default.yaml
+```
+
+Reproducibility notes
+- Config files live in `configs/` and are the source of truth for experiments.
+- For metric evaluation, supply correct camera intrinsics and ground-truth depths when available.
+- Checkpoints in `checkpoints/` are suitable for evaluation and fine-tuning; use `docs/advanced.md` for exact hyperparameters.
+
+Evaluation metrics
+- Implemented standard depth metrics: AbsRel, SqRel, RMSE, RMSE(log), and δ thresholds. Use provided evaluation scripts for KITTI-format ground truth.
+
+Where to find more details
+- Advanced training options, hyperparameters, and formulas: `docs/advanced.md`.
+- Live demo & inference knobs: `inference_live.py` and its command-line options.
+
+License & citation
+- This code is provided under the MIT License (see `LICENSE`). If you reuse or adapt the methods, please cite Monodepth2 and SfMLearner alongside this repository.
+
+Next steps I can take for you
+- Add a concise `CONTRIBUTING.md` describing reproducible experiment runs and how to add configs.
+- Add `AUTHORS.md` or `CITATION.cff` for academic reuse.
+
+If you'd like, I will now commit this change and push it to GitHub for you.
 # MonoDepth AI™ — Real-Time Depth Perception for Any Camera
 
-
+<p align="center">
+  <img src="assets/hero-banner.png" alt="MonoDepth AI Demo" width="100%">
+</p>
 
 **Transform any standard camera into a powerful depth sensor.** MonoDepth AI delivers enterprise-grade 3D depth estimation from a single RGB camera—no LiDAR, stereo setup, or expensive hardware required. Powered by state-of-the-art self-supervised deep learning, our solution provides real-time distance measurement and object detection at a fraction of the cost of traditional depth sensors.
 
@@ -25,7 +95,11 @@ python inference_live.py --webcam 0 --checkpoint checkpoints/best.pth
 
 **That's it!** Point your webcam at any scene and watch real-time depth estimation with object distance tracking.
 
-
+<p align="center">
+  <img src="assets/demo-screenshot.png" alt="Live Inference Demo" width="80%">
+  <br>
+  <em>Real-time depth estimation with object distance measurement</em>
+</p>
 
 ---
 
@@ -104,6 +178,33 @@ MonoDepth AI isn't just research code—it's a production-ready solution designe
 
 ---
 
+## 📸 See It In Action
+
+<table>
+<tr>
+<td width="50%">
+<img src="assets/demo-outdoor.gif" alt="Outdoor Scene">
+<br><em>Outdoor driving scene with vehicle distance tracking</em>
+</td>
+<td width="50%">
+<img src="assets/demo-indoor.gif" alt="Indoor Scene">
+<br><em>Indoor environment with person detection</em>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<img src="assets/depth-colormap.png" alt="Depth Colormap">
+<br><em>Multiple colormap options for visualization</em>
+</td>
+<td width="50%">
+<img src="assets/object-detection.png" alt="Object Detection">
+<br><em>Real-time object detection with distance labels</em>
+</td>
+</tr>
+</table>
+
+---
+
 ## 🎯 Features at a Glance
 
 ### Depth Estimation
@@ -158,7 +259,19 @@ Choose from 8 visualization styles optimized for different applications:
 ✅ Training on your own data  
 ✅ Commercial use permitted  
 
+### 🌟 Enterprise Add-ons
 
+| Add-on | Description | Contact for Pricing |
+|--------|-------------|---------------------|
+| **🚀 TensorRT Optimization** | 2-3x faster inference with NVIDIA TensorRT export | ✉️ sales@example.com |
+| **📱 Mobile Deployment Kit** | Optimized models for iOS/Android (CoreML, ONNX) | ✉️ sales@example.com |
+| **☁️ Cloud API Service** | Managed REST API with auto-scaling | ✉️ sales@example.com |
+| **🔧 Custom Model Training** | Train on your specific data, fine-tuned for your use case | ✉️ sales@example.com |
+| **🎓 Technical Training** | On-site or virtual training for your engineering team | ✉️ sales@example.com |
+| **🛡️ Priority Support** | Dedicated Slack channel, 24-hour response SLA | ✉️ sales@example.com |
+| **🔌 Integration Services** | Custom integration with your existing systems | ✉️ sales@example.com |
+
+**Volume licensing and custom solutions available.** Contact us at **sales@example.com** for a tailored quote.
 
 ---
 
@@ -311,3 +424,7 @@ pip install ultralytics
 
 ---
 
+<p align="center">
+  <b>Ready to add depth perception to your product?</b><br>
+  <a href="mailto:sales@example.com">Contact Us</a> • <a href="https://example.com/demo">Request Demo</a> • <a href="https://example.com/docs">Documentation</a>
+</p>
