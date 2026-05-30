@@ -1,3 +1,4 @@
+
 # MonoDepth AI™ — Real-Time Depth Perception for Any Camera
 
 <p align="center">
@@ -9,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org) [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org) [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
-
+<img width="1920" height="1034" alt="Screenshot from 2025-12-27 10-08-47" src="https://github.com/user-attachments/assets/58fae92e-0c62-4983-808d-f1dad9327d39" />
 ## Getting Started (Quick)
 
 Run a live demo with a webcam using the provided pre-trained checkpoint:
